@@ -18,16 +18,35 @@ ESP8266WebServer server (port);
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(8, PIN, NEO_GRB + NEO_KHZ800);
 bool prevOn = false;
 bool prevReset = false;
+String webServerAddress;
+
+bool isServerVerified(){
+  String clientAddress = server.client().remoteIP().toString();
+  return webServerAddress == clientAddress;
+}
 
 void handleRoot() {
-server.send(200, "text/plain", "hello from " + String(modName));
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
+  server.send(200, "text/plain", "hello from " + String(modName));
 }
 
 void getType() {
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
   server.send(200, "text/plain", "LIGHT_MODULE");
 }
 
 void turnOnLight() {
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
+  
   Serial.println("inside turn on light");
 
   for (auto i = 0; i < 8; ++i)
@@ -39,6 +58,11 @@ void turnOnLight() {
 }
 
 void turnOffLight() {
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
+  
   Serial.println("inside turn off light");
 
   for (auto i = 0; i < 8; ++i)
@@ -50,6 +74,11 @@ void turnOffLight() {
 }
 
 void setStripColor() {
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
+  
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(server.arg("plain"));
 
@@ -66,6 +95,11 @@ void setStripColor() {
 }
 
 void setStripBrightness(){
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
+  
   StaticJsonBuffer<100> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(server.arg("plain"));
   
@@ -111,6 +145,9 @@ void initWiFiConnection(){
     while((tmpChar = EEPROM.read(eeprom_counter ++)) != 0 && eeprom_counter < 512){
       password += tmpChar;
     }
+    while((tmpChar = EEPROM.read(eeprom_counter ++)) != 0 && eeprom_counter < 512){
+      webServerAddress += tmpChar;
+    }
   }
   else{
     Serial.print ("Podaj nazwe sieci: ");
@@ -126,6 +163,13 @@ void initWiFiConnection(){
     password += Serial.readString();
     password.trim();
     Serial.println (password);
+
+    Serial.print ("Podaj adres serwera aplikacji:");
+    while(Serial.available() <= 0);
+
+    webServerAddress += Serial.readString();
+    webServerAddress.trim();
+    Serial.println (webServerAddress);
   }
   
   WiFi.begin (ssid.c_str(), password.c_str());
@@ -177,6 +221,12 @@ void initWiFiConnection(){
     }
     EEPROM.write(eepromStart + password.length(), 0);
 
+    eepromStart = eepromStart + password.length() + 1;
+    for(int i = 0; i < webServerAddress.length(); ++i){
+      EEPROM.write(i + eepromStart, webServerAddress[i]);
+    }
+    EEPROM.write(eepromStart + webServerAddress.length(), 0);
+
     EEPROM.commit();
   }
 
@@ -221,12 +271,12 @@ void loop ( void ) {
   else if(resetEepromState > 0 && !prevReset){
     WiFi.disconnect();
     int eeprom_counter = 0;
-    while(EEPROM.read(eeprom_counter ++) != 0 && eeprom_counter < 512){
-      EEPROM.write(eeprom_counter - 1, 0);
+    for(int i = 0; i < 3; ++i){ // deleting wifi, password, serwer address
+      while(EEPROM.read(eeprom_counter ++) != 0 && eeprom_counter < 512){
+        EEPROM.write(eeprom_counter - 1, 0);
+      }
     }
-    while(EEPROM.read(eeprom_counter ++) != 0 && eeprom_counter < 512){
-      EEPROM.write(eeprom_counter - 1, 0);
-    }
+    webServerAddress = "";
     EEPROM.commit();
     initWiFiConnection();
   }
