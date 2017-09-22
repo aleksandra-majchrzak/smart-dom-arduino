@@ -16,13 +16,29 @@ const int timeout = 20;
 ESP8266WebServer server (port);
 Servo myservo;
 
+String webServerAddress;
+
 bool prevReset = false;
 
+bool isServerVerified(){
+  String clientAddress = server.client().remoteIP().toString();
+  return webServerAddress == clientAddress;
+}
+
 void handleRoot() {
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
+    
   server.send(200, "text/plain", "hello from " + String(modName));
 }
 
 void getType() {
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
   server.send(200, "text/plain", "BLIND_MOTOR_MODULE");
 }
 
@@ -42,6 +58,11 @@ void stop(){
 }
 
 void openBlind(){
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
+  
   StaticJsonBuffer<100> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(server.arg("plain"));
 
@@ -57,6 +78,11 @@ void openBlind(){
 }
 
 void closeBlind(){
+  if(!isServerVerified()){
+    server.send (401, "text/plain", "Unauthorized client");
+    return;
+  }
+  
   StaticJsonBuffer<100> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(server.arg("plain"));
 
@@ -105,6 +131,9 @@ void initWiFiServoConnection(){
     while((tmpChar = EEPROM.read(eeprom_counter ++)) != 0 && eeprom_counter < 512){
       password += tmpChar;
     }
+    while((tmpChar = EEPROM.read(eeprom_counter ++)) != 0 && eeprom_counter < 512){
+      webServerAddress += tmpChar;
+    }
   }
   else{
     Serial.print ("Podaj nazwe sieci: ");
@@ -120,6 +149,13 @@ void initWiFiServoConnection(){
     password += Serial.readString();
     password.trim();
     Serial.println (password);
+
+    Serial.print ("Podaj adres serwera aplikacji:");
+    while(Serial.available() <= 0);
+
+    webServerAddress += Serial.readString();
+    webServerAddress.trim();
+    Serial.println (webServerAddress);
   }
   
   WiFi.begin (ssid.c_str(), password.c_str());
@@ -168,6 +204,12 @@ void initWiFiServoConnection(){
     }
     EEPROM.write(eepromStart + password.length(), 0);
 
+    eepromStart = eepromStart + password.length() + 1;
+    for(int i = 0; i < webServerAddress.length(); ++i){
+      EEPROM.write(i + eepromStart, webServerAddress[i]);
+    }
+    EEPROM.write(eepromStart + webServerAddress.length(), 0);
+
     EEPROM.commit();
   }
 
@@ -196,12 +238,12 @@ void loop() {
     myservo.detach();
     WiFi.disconnect();
     int eeprom_counter = 0;
-    while(EEPROM.read(eeprom_counter ++) != 0 && eeprom_counter < 512){
-      EEPROM.write(eeprom_counter - 1, 0);
+    for(int i = 0; i < 3; ++i){ // deleting wifi, password, serwer address
+      while(EEPROM.read(eeprom_counter ++) != 0 && eeprom_counter < 512){
+        EEPROM.write(eeprom_counter - 1, 0);
+      }
     }
-    while(EEPROM.read(eeprom_counter ++) != 0 && eeprom_counter < 512){
-      EEPROM.write(eeprom_counter - 1, 0);
-    }
+    webServerAddress = "";
     EEPROM.commit();
     initWiFiServoConnection();
   }
