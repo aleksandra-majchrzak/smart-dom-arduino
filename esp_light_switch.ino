@@ -41,6 +41,14 @@ void getType() {
   server.send(200, "text/plain", "LIGHT_MODULE");
 }
 
+void turnOn(){
+  for (auto i = 0; i < 8; ++i)
+  {
+    strip.setPixelColor(i, strip.Color(100, 100, 50));
+  }
+  strip.show();
+}
+
 void turnOnLight() {
   if(!isServerVerified()){
     server.send (401, "text/plain", "Unauthorized client");
@@ -48,13 +56,17 @@ void turnOnLight() {
   }
   
   Serial.println("inside turn on light");
+  int brightness = map(strip.getBrightness(), 0, 255, 0, 100);
+  turnOn();
+  server.send (200, "text/html", "brightness:" + String(brightness));
+}
 
+void turnOff(){
   for (auto i = 0; i < 8; ++i)
   {
-    strip.setPixelColor(i, strip.Color(100, 100, 50));
+    strip.setPixelColor(i, 0);
   }
   strip.show();
-  server.send (200, "text/html", "");
 }
 
 void turnOffLight() {
@@ -64,12 +76,7 @@ void turnOffLight() {
   }
   
   Serial.println("inside turn off light");
-
-  for (auto i = 0; i < 8; ++i)
-  {
-    strip.setPixelColor(i, 0);
-  }
-  strip.show();
+  turnOff();
   server.send (200, "text/html", "");
 }
 
@@ -261,10 +268,11 @@ void loop ( void ) {
   if(changeState > 0){
     int stripColor = strip.getPixelColor(0);
     if(stripColor == 0 && !prevOn){
-      turnOnLight();
+      strip.setBrightness(255);
+      turnOn();
     }
     else if(!prevOn){
-      turnOffLight();
+      turnOff();
     }
     delay(100);
   }
