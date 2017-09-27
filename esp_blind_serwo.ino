@@ -44,17 +44,18 @@ void getType() {
 
 void open(){
   Serial.println ("in open");
-  myservo.write(102);
+  myservo.write(82);
 }
 
 void close(){
   Serial.println ("in close");                               
-  myservo.write(82);
+  myservo.write(102);
 }
 
 void stop(){
   Serial.println ("in stop");
   myservo.write(92);
+  
 }
 
 void openBlind(){
